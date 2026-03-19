@@ -9,8 +9,10 @@ import (
 
 	"go.opentelemetry.io/obi/pkg/appolly/app"
 	"go.opentelemetry.io/obi/pkg/appolly/app/request"
+	"go.opentelemetry.io/obi/pkg/appolly/app/svc"
 	"go.opentelemetry.io/obi/pkg/appolly/discover/exec"
 	"go.opentelemetry.io/obi/pkg/docker"
+	attr "go.opentelemetry.io/obi/pkg/export/attributes/names"
 	"go.opentelemetry.io/obi/pkg/pipe/global"
 	"go.opentelemetry.io/obi/pkg/pipe/msg"
 	"go.opentelemetry.io/obi/pkg/pipe/swarm"
@@ -57,6 +59,9 @@ func (dd *dockerEnricher) decorate(ctx context.Context) {
 	swarms.ForEachInput(ctx, dd.in, dd.log.Debug, func(spans []request.Span) {
 		for i := range spans {
 			svc := &spans[i].Service
+			if _, hasContainer := svc.Metadata[attr.ContainerName]; hasContainer {
+				continue
+			}
 			if ci, ok := dd.containerInfo(ctx, svc.ProcPID); ok {
 				ci.DecorateService(svc)
 			}
@@ -112,6 +117,9 @@ func DockerProcessEventDecoratorProvider(
 							containerByPID[ev.File.Pid] = ci
 						}
 					}
+					if !ok {
+						ci, ok = containerMetaFromAttrs(&ev.File.Service)
+					}
 					if ok {
 						ci.DecorateService(&ev.File.Service)
 					}
@@ -122,4 +130,16 @@ func DockerProcessEventDecoratorProvider(
 			})
 		}, nil
 	}
+}
+
+func containerMetaFromAttrs(s *svc.Attrs) (docker.ContainerMeta, bool) {
+	if s.Metadata == nil {
+		return docker.ContainerMeta{}, false
+	}
+	name, hasName := s.Metadata[attr.ContainerName]
+	if !hasName || name == "" {
+		return docker.ContainerMeta{}, false
+	}
+	id, _ := s.Metadata[attr.ContainerID]
+	return docker.ContainerMeta{Name: name, ID: id}, true
 }

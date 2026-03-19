@@ -88,6 +88,7 @@ type ProcessMatch struct {
 	Criteria            []services.Selector
 	LogEnricherCriteria []services.Selector
 	Process             *services.ProcessInfo
+	Metadata            map[string]string
 }
 
 func (pm ProcessMatch) LogEnricherEnabled() bool {
@@ -184,7 +185,7 @@ func (m *Matcher) matchCriteria(obj ProcessAttrs, proc *services.ProcessInfo) *P
 		m.Log.Debug("found process", "pid", proc.Pid, "comm", proc.ExePath, "metadata",
 			obj.metadata, "podLabels", obj.podLabels, "criteria", criteria, "logEnricherCriteria", logEnricherCriteria)
 
-		return &ProcessMatch{Criteria: criteria, LogEnricherCriteria: logEnricherCriteria, Process: proc}
+		return &ProcessMatch{Criteria: criteria, LogEnricherCriteria: logEnricherCriteria, Process: proc, Metadata: obj.metadata}
 	}
 
 	if len(logEnricherCriteria) > 0 {
@@ -227,6 +228,9 @@ func (m *Matcher) filterCreated(obj ProcessAttrs) (Event[ProcessMatch], bool) {
 		m.Log.Debug("found process by matching the process parent id", "pid", proc.Pid, "ppid", proc.PPid, "comm", proc.ExePath, "metadata", obj.metadata)
 
 		procMatch.Process = proc
+		if len(obj.metadata) > 0 {
+			procMatch.Metadata = obj.metadata
+		}
 
 		m.ProcessHistory[obj.pid] = procMatch
 

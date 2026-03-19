@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/obi/pkg/appolly/app/svc"
 	"go.opentelemetry.io/obi/pkg/appolly/discover/exec"
 	"go.opentelemetry.io/obi/pkg/appolly/services"
+	attr "go.opentelemetry.io/obi/pkg/export/attributes/names"
 	"go.opentelemetry.io/obi/pkg/ebpf"
 	"go.opentelemetry.io/obi/pkg/export/imetrics"
 	"go.opentelemetry.io/obi/pkg/internal/goexec"
@@ -144,6 +145,22 @@ func (t *typer) makeServiceAttrs(processMatch *ProcessMatch) svc.Attrs {
 		PathTrie:           clusterurl.NewPathTrie(routesCfg.MaxPathSegmentCardinality, wildcard),
 		Features:           svcFeatures,
 		LogEnricherEnabled: processMatch.LogEnricherEnabled(),
+	}
+
+	if len(processMatch.Metadata) > 0 {
+		promToAttr := map[string]attr.Name{
+			attr.ContainerName.Prom(): attr.ContainerName,
+			attr.ContainerID.Prom():   attr.ContainerID,
+		}
+		attrMeta := make(map[attr.Name]string, len(processMatch.Metadata))
+		for k, v := range processMatch.Metadata {
+			if attrKey, ok := promToAttr[k]; ok {
+				attrMeta[attrKey] = v
+			}
+		}
+		if len(attrMeta) > 0 {
+			s.Metadata = attrMeta
+		}
 	}
 
 	if routesConfig != nil {
