@@ -62,11 +62,12 @@ func (dd *dockerDecorator) decorate(ctx context.Context) {
 		for i := range instrumentables {
 			ev := &instrumentables[i]
 			switch ev.Type {
-			case EventCreated:
-				meta, ok := dd.containerInfo(ctx, ev.Obj.pid)
-				if ok {
-					ev.Obj.metadata = docker.ContainerMetadata(ev.Obj.metadata, &meta, attr.Name.Prom)
-				}
+		case EventCreated:
+			meta, ok := dd.containerInfo(ctx, ev.Obj.pid)
+			if ok {
+				ev.Obj.metadata = docker.ContainerMetadata(ev.Obj.metadata, &meta, attr.Name.Prom)
+			}
+			dd.log.Info("discovery docker lookup", "pid", ev.Obj.pid, "found", ok, "metadata", ev.Obj.metadata)
 			case EventDeleted:
 				delete(dd.containerByPID, ev.Obj.pid)
 			}

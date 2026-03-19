@@ -110,19 +110,25 @@ func DockerProcessEventDecoratorProvider(
 					return
 				}
 				switch ev.Type {
-				case exec.ProcessEventCreated:
-					ci, ok := containerByPID[ev.File.Pid]
-					if !ok {
-						if ci, ok = containers.ContainerInfo(ctx, ev.File.Pid); ok {
-							containerByPID[ev.File.Pid] = ci
-						}
+			case exec.ProcessEventCreated:
+				ci, ok := containerByPID[ev.File.Pid]
+				source := "cache"
+				if !ok {
+					if ci, ok = containers.ContainerInfo(ctx, ev.File.Pid); ok {
+						containerByPID[ev.File.Pid] = ci
+						source = "docker-api"
 					}
-					if !ok {
-						ci, ok = containerMetaFromAttrs(&ev.File.Service)
+				}
+				if !ok {
+					if ci, ok = containerMetaFromAttrs(&ev.File.Service); ok {
+						source = "svc-metadata"
 					}
-					if ok {
-						ci.DecorateService(&ev.File.Service)
-					}
+				}
+				if ok {
+					ci.DecorateService(&ev.File.Service)
+				}
+				dpelog().Info("process event docker", "pid", ev.File.Pid, "found", ok, "source", source,
+					"svcName", ev.File.Service.UID.Name, "svcMetadata", ev.File.Service.Metadata)
 				case exec.ProcessEventTerminated:
 					delete(containerByPID, ev.File.Pid)
 				}
