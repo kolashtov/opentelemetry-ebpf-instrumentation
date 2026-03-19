@@ -59,7 +59,8 @@ func (dd *dockerEnricher) decorate(ctx context.Context) {
 	swarms.ForEachInput(ctx, dd.in, dd.log.Debug, func(spans []request.Span) {
 		for i := range spans {
 			svc := &spans[i].Service
-			if _, hasContainer := svc.Metadata[attr.ContainerName]; hasContainer {
+			if ci, ok := containerMetaFromAttrs(svc); ok {
+				ci.DecorateService(svc)
 				continue
 			}
 			if ci, ok := dd.containerInfo(ctx, svc.ProcPID); ok {
