@@ -4,6 +4,7 @@
 package ebpfcommon // import "go.opentelemetry.io/obi/pkg/ebpf/common"
 
 import (
+	"fmt"
 	"log/slog"
 	"sync"
 
@@ -220,9 +221,17 @@ func (pf *IdentityPidsFilter) Filter(inputSpans []request.Span) []request.Span {
 func (pf *PIDsFilter) checkIfExportsOTel(svc *svc.Attrs, span *request.Span, defaultOtlpGRPCPort int) {
 	if !svc.ExportsOTelMetrics() && span.IsExportMetricsSpan(defaultOtlpGRPCPort) {
 		svc.SetExportsOTelMetrics()
+		pf.log.Info("skipping OTel metrics generation: service already exports metrics via native instrumentation",
+			"service", svc.UID.Name, "namespace", svc.UID.Namespace,
+			"instance", svc.UID.Instance, "pid", svc.ProcPID,
+			"detected_via", describeExportSpan(span))
 		pf.reportAvoidedService(svc, "metrics")
 	} else if !svc.ExportsOTelTraces() && span.IsExportTracesSpan(defaultOtlpGRPCPort) {
 		svc.SetExportsOTelTraces()
+		pf.log.Info("skipping OTel traces generation: service already exports traces via native instrumentation",
+			"service", svc.UID.Name, "namespace", svc.UID.Namespace,
+			"instance", svc.UID.Instance, "pid", svc.ProcPID,
+			"detected_via", describeExportSpan(span))
 		pf.reportAvoidedService(svc, "traces")
 	}
 }
@@ -230,7 +239,22 @@ func (pf *PIDsFilter) checkIfExportsOTel(svc *svc.Attrs, span *request.Span, def
 func (pf *PIDsFilter) checkIfExportsOTelSpanMetrics(svc *svc.Attrs, span *request.Span, defaultOtlpGRPCPort int) {
 	if span.IsExportTracesSpan(defaultOtlpGRPCPort) && !svc.ExportsOTelMetricsSpan() {
 		svc.SetExportsOTelMetricsSpan()
+		pf.log.Info("skipping OTel span metrics generation: service already exports traces via native instrumentation",
+			"service", svc.UID.Name, "namespace", svc.UID.Namespace,
+			"instance", svc.UID.Instance, "pid", svc.ProcPID,
+			"detected_via", describeExportSpan(span))
 		pf.reportAvoidedService(svc, "metrics_span")
+	}
+}
+
+func describeExportSpan(span *request.Span) string {
+	switch span.Type {
+	case request.EventTypeHTTPClient:
+		return "HTTP client " + span.Method + " " + span.Peer + ":" + fmt.Sprint(span.PeerPort) + span.Path
+	case request.EventTypeGRPCClient:
+		return "gRPC client " + span.Peer + ":" + fmt.Sprint(span.PeerPort) + " " + span.Path
+	default:
+		return fmt.Sprintf("type=%d peer=%s:%d path=%s", span.Type, span.Peer, span.PeerPort, span.Path)
 	}
 }
 
